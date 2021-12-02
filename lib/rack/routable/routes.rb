@@ -59,29 +59,6 @@ module Rack
         self
       end
 
-      # Mount a rack app in the routing table
-      #
-      # @param prefix [String]
-      # @param app [#call]
-      # @param options [Hash]
-      #
-      # @return [Routes] this object
-      def mount!(prefix, app, options = EMPTY_HASH)
-        @table[:mount] ||= []
-        @table[:mount] << Route.new(self, :mount, prefix, options, app, parse_path(prefix)[:path])
-
-        if app.respond_to?(:routes)
-          app.routes.each do |route|
-            route = route.with_prefix(prefix)
-            define_singleton_method route.path_method_name do |*args|
-              route.route_path(*args)
-            end
-          end
-        end
-
-        self
-      end
-
       # Match a route in the table to the given Rack environment.
       #
       # @param env [Hash] a Rack environment
@@ -97,21 +74,6 @@ module Rack
           routes.each do |route| #|(route, action, _, options)|
             if (params = match_path(parts, route.parsed_path))
               return { tag: :action, value: route.action, params: params, options: route.options }
-            end
-          end
-        end
-
-        if (mounted = @table[:mount])
-          mounted.each do |route| #|(prefix, app, _, options)|
-            prefix = route.parsed_path
-            if path_start_with?(parts, prefix)
-              app_path = "/#{parts[prefix.size, parts.size].join('/')}"
-              return {
-                tag: :app,
-                value: route.action,
-                env: env.merge('PATH_INFO' => app_path, 'rack-routable.original-path' => path),
-                options: route.options
-              }
             end
           end
         end

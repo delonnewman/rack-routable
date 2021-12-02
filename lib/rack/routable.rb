@@ -143,20 +143,16 @@ module Rack
       # A "macro" method for defining a route for the application.
       #
       # @param method [:get, :post, :delete :put, :head, :link :unlink]
-      def route(method, path, **options, &block)
+      def route(method, path, proc = nil, **options, &block)
         raise "Invalid method: #{method.inspect}" unless METHODS.include?(method)
 
-        routes.add!(method, path, block, options)
+        routes.add!(method, path, proc || block, options)
       end
 
       METHODS.each do |method|
-        define_method method do |path, **options, &block|
-          route(method, path, **options, &block)
+        define_method method do |path, proc = nil, **options, &block|
+          route(method, path, proc, **options, &block)
         end
-      end
-
-      def mount(prefix, app, **options)
-        routes.mount!(prefix, app, options)
       end
     end
 
@@ -311,7 +307,13 @@ module Rack
           @match[:value].call(@match[:env])
         when :action
           res = begin
-                  instance_exec(params, @request, &@match[:value])
+                  if (callable = @match[:value]).is_a?(Proc) && !callable.lambda?
+                    instance_exec(params, @request, &@match[:value])
+                  elsif callable.respond_to?(:arity) && callable.arity.zero?
+                    callable.call
+                  else
+                    callable.call(@request)
+                  end
                 rescue => e
                   if ENV.fetch('RACK_ENV') { :development }.to_sym == :production
                     env['rack.routable.error'] = e
