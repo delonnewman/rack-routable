@@ -2,61 +2,6 @@
 
 module Rack
   module Routable
-    class Route
-      attr_reader :router, :method, :path, :options, :action, :parsed_path
-
-      def initialize(router, method, path, options, action, parsed_path)
-        @router = router
-        @method = method
-        @path = path
-        @options = options
-        @action = action
-        @parsed_path = parsed_path
-      end
-
-      def path_method_prefix
-        return 'root' if path == '/'
-
-        parts = []
-        path.split('/').each do |part|
-          parts << part.gsub(/\W+/, '_') unless part.start_with?(':') || part.empty?
-        end
-        parts.join('_')
-      end
-
-      def path_method_name
-        "#{path_method_prefix}_path"
-      end
-
-      def url_method_name
-        "#{path_method_prefix}_url"
-      end
-
-      def route_path(*args)
-        vars = @path.scan(/(:\w+)/)
-
-        if vars.length != args.length
-          raise ArgumentError, "wrong number of arguments expected #{vars.length} got #{args.length}"
-        end
-
-        return @path if vars.length.zero?
-
-        path = nil
-        vars.each_with_index do |str, i|
-          path = @path.sub(str[0], args[i].to_s)
-        end
-        path
-      end
-
-      def route_url(root, *args)
-        "#{root}/#{route_path(*args)}"
-      end
-
-      def with_prefix(prefix)
-        self.class.new(router, method, prefix + path, options, action, parsed_path)
-      end
-    end
-
     # A routing table--collects routes, and matches them against a given Rack environment.
     #
     # @api private
@@ -64,11 +9,8 @@ module Rack
     class Routes
       include Enumerable
 
-      attr_reader :router
-
-      def initialize(router)
+      def initialize
         @table = {}
-        @router = router
       end
 
       # Iterate over each route in the routes table passing it's information along
@@ -128,10 +70,12 @@ module Rack
         @table[:mount] ||= []
         @table[:mount] << Route.new(self, :mount, prefix, options, app, parse_path(prefix)[:path])
 
-        app.routes.each do |route|
-          route = route.with_prefix(prefix)
-          define_singleton_method route.path_method_name do |*args|
-            route.route_path(*args)
+        if app.respond_to?(:routes)
+          app.routes.each do |route|
+            route = route.with_prefix(prefix)
+            define_singleton_method route.path_method_name do |*args|
+              route.route_path(*args)
+            end
           end
         end
 

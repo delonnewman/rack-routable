@@ -1,7 +1,8 @@
 # frozen_string_literal: true
+
 require 'cgi'
+require 'rack'
 require 'stringio'
-require 'invokable'
 
 module Rack
   # Provides a light-weight DSL for routing over Rack, and instances implement
@@ -56,6 +57,7 @@ module Rack
   #     mount '/admin', AdminApp
   #   end
   module Routable
+    require_relative 'routable/route'
     require_relative 'routable/routes'
 
     # The default headers for responses
@@ -71,7 +73,6 @@ module Rack
     def self.included(base)
       base.extend(ClassMethods)
       base.include(InstanceMethods)
-      base.include(Invokable)
     end
 
     # TODO: implement custom query parser
@@ -136,7 +137,7 @@ module Rack
       #
       # @return [Routes]
       def routes
-        @routes ||= Routes.new(self)
+        @routes ||= Routes.new
       end
 
       # A "macro" method for defining a route for the application.
