@@ -93,15 +93,14 @@ module Rack
       # @param klass [Class] Rack middleware
       # @param args [Array] arguments for initializing the middleware
       def use(klass, *args)
-        @middleware ||= []
-        @middleware << [klass, args]
+        middleware << [klass, args]
       end
 
       # Return an array of Rack middleware (used by this application) and their arguments.
       #
       # @return [Array<[Class, Array]>]
       def middleware
-        @middleware || EMPTY_ARRAY
+        @middleware ||= []
       end
 
       # A "macro" method for specifying the root_path of the application.
@@ -125,8 +124,12 @@ module Rack
 
       # Rack application
       def rack
-        middleware.reduce(self) do |app, (klass, args)|
-          klass.new(app, *args)
+        routable = self
+        Rack::Builder.new do
+          middleware.each do |middle|
+            use middle
+          end
+          run routable
         end
       end
 
@@ -302,38 +305,33 @@ module Rack
       def call
         return not_found if @match.empty?
 
-        case @match[:tag]
-        when :app
-          @match[:value].call(@match[:env])
-        when :action
-          res = begin
-                  if (callable = @match[:value]).is_a?(Proc) && !callable.lambda?
-                    instance_exec(params, @request, &@match[:value])
-                  elsif callable.respond_to?(:arity) && callable.arity.zero?
-                    callable.call
-                  else
-                    callable.call(@request)
-                  end
-                rescue => e
-                  if ENV.fetch('RACK_ENV') { :development }.to_sym == :production
-                    env['rack.routable.error'] = e
-                    return error(e)
-                  else
-                    raise e
-                  end
-                end
-
-          if res.is_a?(Array) && res.size == 3 && res[0].is_a?(Integer)
-            res
-          elsif res.is_a?(Response)
-            res.finish
-          elsif res.is_a?(Hash) && res.key?(:status)
-            [res[:status], res.fetch(:headers) { DEFAULT_HEADERS.dup }, res[:body]]
-          elsif res.respond_to?(:each)
-            [200, DEFAULT_HEADERS.dup, res]
+        res = begin
+          if (callable = @match[:value]).is_a?(Proc) && !callable.lambda?
+            instance_exec(params, @request, &@match[:value])
+          elsif callable.respond_to?(:arity) && callable.arity.zero?
+            callable.call
           else
-            [200, DEFAULT_HEADERS.dup, StringIO.new(res.to_s)]
+            callable.call(@request)
           end
+        rescue => e
+          if ENV.fetch('RACK_ENV') { :development }.to_sym == :production
+            env['rack.routable.error'] = e
+            return error(e)
+          else
+            raise e
+          end
+        end
+
+        if res.is_a?(Array) && res.size == 3 && res[0].is_a?(Integer)
+          res
+        elsif res.is_a?(Response)
+          res.finish
+        elsif res.is_a?(Hash) && res.key?(:status)
+          [res[:status], res.fetch(:headers) { DEFAULT_HEADERS.dup }, res[:body]]
+        elsif res.respond_to?(:each)
+          [200, DEFAULT_HEADERS.dup, res]
+        else
+          [200, DEFAULT_HEADERS.dup, StringIO.new(res.to_s)]
         end
       end
     end
