@@ -163,10 +163,11 @@ module Rack
       attr_reader :env, :request, :params
 
       def initialize(env)
-        @env      = env
-        @request  = Request.new(env)
-        @match    = self.class.routes.match(env, @request.request_method) || EMPTY_HASH
-        @params   = @request.params.merge(@match[:params]) if @match && @match[:params]
+        @env     = env
+        @request = Request.new(env)
+
+        @route, params = self.class.routes.match(env)
+        @params   = @request.params.merge(params) if @route && params
         @response = Rack::Response.new
       end
 
@@ -303,11 +304,11 @@ module Rack
 
       # TODO: add error and not_found to the DSL
       def call
-        return not_found if @match.empty?
+        return not_found unless @route
 
         res = begin
-          if (callable = @match[:value]).is_a?(Proc) && !callable.lambda?
-            instance_exec(params, @request, &@match[:value])
+          if (callable = @route.action).is_a?(Proc) && !callable.lambda?
+            instance_exec(params, @request, &@route.action)
           elsif callable.respond_to?(:arity) && callable.arity.zero?
             callable.call
           else

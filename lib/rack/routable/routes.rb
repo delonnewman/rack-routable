@@ -58,21 +58,19 @@ module Rack
       #
       # @param env [Hash] a Rack environment
       #
-      # @return [{ value: #call, params: Hash, options: Hash, env:? Hash }]
+      # @return [[Route, Hash]]
       def match(env, method = env['REQUEST_METHOD'])
         path   = env['PATH_INFO']
         path   = path.start_with?('/') ? path[1, path.size] : path
         parts  = path.split(/\/+/)
 
-        if (routes = @table[method])
-          routes.each do |route|
-            if (params = match_path(parts, route.parsed_path))
-              return { value: route.action, params: params, options: route.options }
-            end
+        return unless (routes = @table[method])
+
+        routes.each do |route|
+          if (params = match_path(parts, route.parsed_path))
+            return [route, params]
           end
         end
-
-        false
       end
 
       private
