@@ -11,6 +11,7 @@ module Rack
 
       def initialize
         @table = {}
+        @routes = []
       end
 
       # Iterate over each route in the routes table passing it's information along
@@ -20,19 +21,7 @@ module Rack
       #
       # @return [Routes] this object
       def each_route(&block)
-        @table.each do |method, routes|
-          routes.each do |route|
-            if method == :mount && route.action.respond_to?(:routes)
-              route.action.routes.each do |app_route|
-                r = app_route.with_prefix(route.path)
-                block.call(r)
-              end
-            else
-              block.call(route)
-            end
-          end
-        end
-
+        routes.each(&block)
         self
       end
       alias each each_route
@@ -46,15 +35,21 @@ module Rack
       #
       # @return [Routes]
       def add!(method, path, action, options = EMPTY_HASH)
-        # TODO: Add Symbol#name for older versions of Ruby
-        method = method.name.upcase
-        @table[method] ||= []
-        route = Route.new(method, path, options, action, parse_path(path))
-        @table[method] << route
+        self << Route.new(method, path, options, action, parse_path(path))
+      end
 
-        define_singleton_method route.path_method_name do |*args|
-          route.route_path(*args)
-        end
+      # Add a route to the table.
+      #
+      # @param Route [Route]
+      #
+      # @return [Routes]
+      def <<(route)
+        # TODO: Add Symbol#name for older versions of Ruby
+        method = route.method.name.upcase
+        @table[method] ||= []
+
+        @table[method] << route
+        @routes << route
 
         self
       end
@@ -63,12 +58,11 @@ module Rack
       #
       # @param env [Hash] a Rack environment
       #
-      # @return [{ tag: Symbol, value: #call, params: Hash, options: Hash, env:? Hash }]
+      # @return [{ value: #call, params: Hash, options: Hash, env:? Hash }]
       def match(env, method = env['REQUEST_METHOD'])
         path   = env['PATH_INFO']
         path   = path.start_with?('/') ? path[1, path.size] : path
         parts  = path.split(/\/+/)
-
 
         if (routes = @table[method])
           routes.each do |route|
