@@ -3,10 +3,9 @@
 module Rack
   module Routable
     class Route
-      attr_reader :router, :method, :path, :options, :action, :parsed_path
+      attr_reader :method, :path, :options, :action, :parsed_path
 
-      def initialize(router, method, path, options, action, parsed_path)
-        @router = router
+      def initialize(method, path, options, action, parsed_path)
         @method = method
         @path = path
         @options = options

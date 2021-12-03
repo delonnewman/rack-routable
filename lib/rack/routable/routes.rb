@@ -49,7 +49,7 @@ module Rack
         # TODO: Add Symbol#name for older versions of Ruby
         method = method.name.upcase
         @table[method] ||= []
-        route = Route.new(self, method, path, options, action, parse_path(path))
+        route = Route.new(method, path, options, action, parse_path(path))
         @table[method] << route
 
         define_singleton_method route.path_method_name do |*args|
@@ -71,9 +71,9 @@ module Rack
 
 
         if (routes = @table[method])
-          routes.each do |route| #|(route, action, _, options)|
+          routes.each do |route|
             if (params = match_path(parts, route.parsed_path))
-              return { tag: :action, value: route.action, params: params, options: route.options }
+              return { value: route.action, params: params, options: route.options }
             end
           end
         end
